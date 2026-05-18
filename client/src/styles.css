@@ -417,6 +417,9 @@ textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
    Badges, tags, pills
 --------------------------------------------------------------------------- */
 
+/* Domain badge — colors are applied inline based on the Domain entity's
+   `color` field (with a deterministic hash fallback for unknown domains).
+   See lib/domain-color.ts and components/DomainBadge.tsx. */
 .domain-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -427,15 +430,7 @@ textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
   color: var(--text-muted);
   margin-right: 6px;
   letter-spacing: 0;
-  text-transform: lowercase;
 }
-.domain-badge[data-domain="concepts"]      { background: #F3F0FE; color: #6D28D9; }
-.domain-badge[data-domain="architectures"] { background: #EFF6FF; color: #1D4ED8; }
-.domain-badge[data-domain="tools"]         { background: #F0FDF4; color: #15803D; }
-.domain-badge[data-domain="workflows"]     { background: #FFFBEB; color: #B45309; }
-.domain-badge[data-domain="papers"]        { background: #FDF2F8; color: #BE185D; }
-.domain-badge[data-domain="people"]        { background: #FEF2F2; color: #B91C1C; }
-.domain-badge[data-domain="models"]        { background: #ECFEFF; color: #0E7490; }
 
 .tag-pill {
   display: inline-block;

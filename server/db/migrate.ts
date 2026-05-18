@@ -174,6 +174,59 @@ const WORKSPACE_MIGRATION_SQL = `
   $func$;
 `;
 
+// Domain entity migration. Creates the domains table, seeds it with one row
+// per distinct (workspace_id, domain) seen in nodes, then adds the FK.
+//
+// For the seven well-known seed domains we set sensible labels and colors so
+// the UI keeps looking the same after the migration. Anything else gets a
+// humanized label and null color (the client hashes a color).
+const DOMAINS_MIGRATION_SQL = `
+  CREATE TABLE domains (
+    workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    id           text NOT NULL,
+    label        text NOT NULL,
+    description  text NOT NULL DEFAULT '',
+    color        text,
+    position     integer NOT NULL DEFAULT 100,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (workspace_id, id)
+  );
+  CREATE INDEX domains_ws_position_idx ON domains (workspace_id, position, label);
+  CREATE TRIGGER domains_updated_at
+    BEFORE UPDATE ON domains
+    FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+  -- Backfill: one row per distinct (workspace_id, domain) in nodes.
+  INSERT INTO domains (workspace_id, id, label, color, position)
+  SELECT DISTINCT
+    n.workspace_id,
+    n.domain,
+    -- humanize: "code-review" -> "Code review"; well-known stay capitalized below
+    initcap(replace(n.domain, '-', ' ')),
+    NULL,
+    100
+  FROM nodes n
+  ON CONFLICT (workspace_id, id) DO NOTHING;
+
+  -- Polish the seven seed domains with labels + accent colors matching the
+  -- previous hardcoded badges, in their conventional display order.
+  UPDATE domains SET label = 'Concepts',      color = '#6D28D9', position = 10 WHERE id = 'concepts';
+  UPDATE domains SET label = 'Architectures', color = '#1D4ED8', position = 20 WHERE id = 'architectures';
+  UPDATE domains SET label = 'Tools',         color = '#15803D', position = 30 WHERE id = 'tools';
+  UPDATE domains SET label = 'Workflows',     color = '#B45309', position = 40 WHERE id = 'workflows';
+  UPDATE domains SET label = 'Papers',        color = '#BE185D', position = 50 WHERE id = 'papers';
+  UPDATE domains SET label = 'People',        color = '#B91C1C', position = 60 WHERE id = 'people';
+  UPDATE domains SET label = 'Models',        color = '#0E7490', position = 70 WHERE id = 'models';
+
+  -- Now that every nodes.domain has a matching row, enforce the FK.
+  ALTER TABLE nodes
+    ADD CONSTRAINT nodes_domain_fkey
+    FOREIGN KEY (workspace_id, domain)
+    REFERENCES domains (workspace_id, id)
+    ON DELETE RESTRICT;
+`;
+
 export async function migrate(): Promise<void> {
   const schemaPath = join(__dirname, 'schema.sql');
   const schema = readFileSync(schemaPath, 'utf8');
@@ -207,6 +260,17 @@ export async function migrate(): Promise<void> {
       await client.query(WORKSPACE_MIGRATION_SQL);
     });
     console.log('[migrate] workspace migration done');
+    return;
+  }
+
+  // Domains migration: promote nodes.domain to a real entity.
+  const hasDomains = await tableExists('domains');
+  if (!hasDomains) {
+    console.log('[migrate] adding domains table and backfilling rows...');
+    await withClient(async (client) => {
+      await client.query(DOMAINS_MIGRATION_SQL);
+    });
+    console.log('[migrate] domains migration done');
     return;
   }
 

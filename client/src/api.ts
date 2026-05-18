@@ -2,6 +2,8 @@ import type {
   AutocompleteResult,
   Comment,
   CommentTreeNode,
+  Domain,
+  DomainWithCount,
   Edge,
   GraphExport,
   Node,
@@ -150,6 +152,27 @@ export const deleteComment = (ws: string, id: number) =>
 export const getGraph = (ws: string) => req<GraphExport>(wsPath(ws, '/graph'));
 export const getDomainGraph = (ws: string, domain: string) =>
   req<GraphExport>(wsPath(ws, `/graph/domain/${domain}`));
+
+// ---------------------------------------------------------------------------
+// domains
+// ---------------------------------------------------------------------------
+
+export const listDomains = (ws: string) => req<DomainWithCount[]>(wsPath(ws, '/domains'));
+export const getDomain = (ws: string, id: string) => req<Domain>(wsPath(ws, `/domains/${id}`));
+export const createDomain = (
+  ws: string,
+  body: { id: string; label?: string; description?: string; color?: string | null; position?: number },
+) => req<Domain>(wsPath(ws, '/domains'), { method: 'POST', body: JSON.stringify(body) });
+export const updateDomain = (
+  ws: string,
+  id: string,
+  body: { label?: string; description?: string; color?: string | null; position?: number },
+) => req<Domain>(wsPath(ws, `/domains/${id}`), { method: 'PUT', body: JSON.stringify(body) });
+export const deleteDomain = (ws: string, id: string, move_to?: string) =>
+  req<{ deleted: true }>(wsPath(ws, `/domains/${id}`), {
+    method: 'DELETE',
+    body: JSON.stringify(move_to ? { move_to } : {}),
+  });
 
 // ---------------------------------------------------------------------------
 // widgets

@@ -1,19 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 import { useNavigate } from 'react-router-dom';
 import type { Edge, Node } from '@kb/shared';
 import { useWorkspaceId } from '../context/WorkspaceContext';
-
-export const DOMAIN_COLORS: Record<string, string> = {
-  concepts: '#8b5cf6',
-  architectures: '#3b82f6',
-  tools: '#22c55e',
-  workflows: '#eab308',
-  papers: '#ec4899',
-  people: '#ef4444',
-  models: '#06b6d4',
-  default: '#94a3b8',
-};
+import { useDomains } from '../hooks/useDomains';
+import { hashedColor } from '../lib/domain-color';
 
 interface Props {
   nodes: Pick<Node, 'id' | 'title' | 'domain'>[];
@@ -39,6 +30,12 @@ export function GraphCanvas({ nodes, edges, highlight, height = 600, mini = fals
   const ref = useRef<SVGSVGElement>(null);
   const navigate = useNavigate();
   const ws = useWorkspaceId();
+  const { data: domains } = useDomains();
+  const colorFor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of domains ?? []) if (d.color) map.set(d.id, d.color);
+    return (domain: string) => map.get(domain) ?? hashedColor(domain);
+  }, [domains]);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -128,7 +125,7 @@ export function GraphCanvas({ nodes, edges, highlight, height = 600, mini = fals
     node
       .append('circle')
       .attr('r', (d) => 4 + Math.sqrt(d.degree) * 3)
-      .attr('fill', (d) => DOMAIN_COLORS[d.domain] ?? DOMAIN_COLORS.default)
+      .attr('fill', (d) => colorFor(d.domain))
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
       .style('opacity', (d) => (highlight && !highlight.has(d.id) ? 0.2 : 1));

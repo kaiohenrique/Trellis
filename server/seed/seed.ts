@@ -1,9 +1,19 @@
 import 'dotenv/config';
 import { pool } from '../db/client.js';
 import { migrate } from '../db/migrate.js';
-import { createEdge, upsertNode, upsertWidget, upsertWorkspace } from '../core/graph.js';
+import { createEdge, upsertDomain, upsertNode, upsertWidget, upsertWorkspace } from '../core/graph.js';
 
 const WS = 'ai-agents';
+
+const DEFAULT_DOMAINS: Array<{ id: string; label: string; color: string; position: number }> = [
+  { id: 'concepts',      label: 'Concepts',      color: '#6D28D9', position: 10 },
+  { id: 'architectures', label: 'Architectures', color: '#1D4ED8', position: 20 },
+  { id: 'tools',         label: 'Tools',         color: '#15803D', position: 30 },
+  { id: 'workflows',     label: 'Workflows',     color: '#B45309', position: 40 },
+  { id: 'papers',        label: 'Papers',        color: '#BE185D', position: 50 },
+  { id: 'people',        label: 'People',        color: '#B91C1C', position: 60 },
+  { id: 'models',        label: 'Models',        color: '#0E7490', position: 70 },
+];
 
 interface SeedNode {
   id: string;
@@ -491,6 +501,11 @@ async function seed(): Promise<void> {
     name: 'Sandbox',
     description: 'Scratch space for testing',
   });
+
+  console.log(`[seed] upserting ${DEFAULT_DOMAINS.length} default domains into ${WS}...`);
+  for (const d of DEFAULT_DOMAINS) {
+    await upsertDomain(WS, d);
+  }
 
   console.log(`[seed] upserting ${NODES.length} nodes into ${WS}...`);
   for (const n of NODES) {

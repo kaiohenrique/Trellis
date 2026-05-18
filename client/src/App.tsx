@@ -14,6 +14,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { DiffPage } from './pages/DiffPage';
 import { GraphView } from './pages/GraphView';
 import { Manage } from './pages/Manage';
+import { DomainsAdmin } from './pages/DomainsAdmin';
 import { WidgetPage, WidgetsList } from './pages/Widgets';
 import { lastUsedWorkspace, rememberWorkspace, WorkspacePicker } from './pages/WorkspacePicker';
 import { Sidebar } from './components/Sidebar';
@@ -34,6 +35,7 @@ export function App() {
         <Route path="widgets" element={<WidgetsList />} />
         <Route path="widgets/:id" element={<WidgetPage />} />
         <Route path="manage" element={<Manage />} />
+        <Route path="manage/domains" element={<DomainsAdmin />} />
       </Route>
       <Route path="*" element={<RootRedirect />} />
     </Routes>

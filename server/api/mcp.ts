@@ -6,15 +6,18 @@ import {
   createEdge,
   createWorkspace,
   exportGraph,
+  getDomain,
   getNode,
   getWidget,
   getWorkspace,
+  listDomains,
   listNodes,
   listWidgets,
   listWorkspaces,
   neighbors,
   refreshWidgetData,
   searchNodes,
+  upsertDomain,
   upsertNode,
   upsertWidget,
 } from '../core/graph.js';
@@ -222,6 +225,42 @@ const TOOLS = [
       required: ['workspace_id', 'id', 'data'],
     },
   },
+
+  // ----- Domains -----
+  {
+    name: 'kb_domain_list',
+    description: 'List the domain registry for a workspace, with node counts.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...wsField },
+      required: ['workspace_id'],
+    },
+  },
+  {
+    name: 'kb_domain_get',
+    description: 'Get a single domain entity',
+    inputSchema: {
+      type: 'object',
+      properties: { ...wsField, id: { type: 'string' } },
+      required: ['workspace_id', 'id'],
+    },
+  },
+  {
+    name: 'kb_domain_save',
+    description: 'Create or update a domain (label, description, color, position). Note: domains are auto-created on node insert; use this only to set nicer metadata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...wsField,
+        id: { type: 'string', description: 'Slug, e.g. "books"' },
+        label: { type: 'string' },
+        description: { type: 'string' },
+        color: { type: 'string', description: 'Hex color like #6D28D9, or null to clear' },
+        position: { type: 'number', description: 'Sort order on the Home grid (lower first)' },
+      },
+      required: ['workspace_id', 'id'],
+    },
+  },
 ];
 
 async function dispatch(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -296,6 +335,18 @@ async function dispatch(name: string, args: Record<string, unknown>): Promise<un
       if (!w) throw new Error(`widget not found: ${args.id}`);
       return w;
     }
+    case 'kb_domain_list':
+      return listDomains(ws);
+    case 'kb_domain_get':
+      return getDomain(ws, args.id as string);
+    case 'kb_domain_save':
+      return upsertDomain(ws, {
+        id: args.id as string,
+        label: args.label as string | undefined,
+        description: args.description as string | undefined,
+        color: args.color as string | null | undefined,
+        position: args.position as number | undefined,
+      });
     default:
       throw new Error(`unknown tool: ${name}`);
   }

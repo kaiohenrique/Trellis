@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { migrate } from '../db/migrate.js';
 import { commentMutateRouter, commentsRouter } from './routes/comments.js';
+import { domainsRouter } from './routes/domains.js';
 import { edgesRouter } from './routes/edges.js';
 import { graphRouter } from './routes/graph.js';
 import { nodesRouter } from './routes/nodes.js';
@@ -66,6 +67,7 @@ export async function buildApp(): Promise<express.Application> {
   wsRouter.use('/run', scriptsRouter);
   wsRouter.use('/graph', graphRouter);
   wsRouter.use('/widgets', widgetsRouter);
+  wsRouter.use('/domains', domainsRouter);
   api.use('/workspaces/:workspaceId', wsRouter);
 
   app.use('/api/v1', api);

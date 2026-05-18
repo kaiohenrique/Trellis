@@ -2,6 +2,8 @@ import type {
   AutocompleteResult,
   Comment,
   CommentTreeNode,
+  Domain,
+  DomainWithCount,
   Edge,
   GraphExport,
   Node,
@@ -11,6 +13,7 @@ import type {
   Widget,
   Workspace,
 } from '@kb/shared';
+import type pg from 'pg';
 import { query, withClient, withTransaction } from '../db/client.js';
 
 // ---------------------------------------------------------------------------
@@ -117,6 +120,18 @@ function rowToWorkspace(row: Record<string, unknown>): Workspace {
   };
 }
 
+function rowToDomain(row: Record<string, unknown>): Domain {
+  return {
+    id: String(row.id),
+    label: String(row.label),
+    description: String(row.description ?? ''),
+    color: row.color == null ? null : String(row.color),
+    position: Number(row.position ?? 100),
+    created_at: new Date(row.created_at as string).toISOString(),
+    updated_at: new Date(row.updated_at as string).toISOString(),
+  };
+}
+
 const NODE_COLS = `id, title, body, domain, tags, metadata, embedding, created_at, updated_at`;
 const WIDGET_COLS = `id, title, description, renderer, renderer_options, data, data_schema,
                      source_script, source_url, created_by, last_run_at, created_at, updated_at`;
@@ -183,6 +198,142 @@ export async function updateWorkspace(
 export async function deleteWorkspace(id: string): Promise<boolean> {
   const result = await query(`DELETE FROM workspaces WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Domains
+// ---------------------------------------------------------------------------
+
+const DOMAIN_COLS = `id, label, description, color, position, created_at, updated_at`;
+
+export interface DomainWriteInput {
+  id: string;
+  label?: string;
+  description?: string;
+  color?: string | null;
+  position?: number;
+}
+
+// Humanize a slug: "code-review" -> "Code review", "react_pattern" -> "React pattern".
+function humanize(slug: string): string {
+  const spaced = slug.replace(/[-_]+/g, ' ').trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+export async function listDomains(workspaceId: string): Promise<DomainWithCount[]> {
+  const sql = `
+    SELECT d.${DOMAIN_COLS.split(', ').join(', d.')},
+           COALESCE(c.cnt, 0)::int AS node_count
+    FROM domains d
+    LEFT JOIN (
+      SELECT domain, COUNT(*)::int AS cnt
+      FROM nodes
+      WHERE workspace_id = $1
+      GROUP BY domain
+    ) c ON c.domain = d.id
+    WHERE d.workspace_id = $1
+    ORDER BY d.position ASC, d.label ASC
+  `;
+  const result = await query(sql, [workspaceId]);
+  return result.rows.map((r) => ({
+    ...rowToDomain(r),
+    node_count: Number(r.node_count ?? 0),
+  }));
+}
+
+export async function getDomain(workspaceId: string, id: string): Promise<Domain | null> {
+  const sql = `SELECT ${DOMAIN_COLS} FROM domains WHERE workspace_id = $1 AND id = $2`;
+  const result = await query(sql, [workspaceId, id]);
+  if (result.rowCount === 0) return null;
+  return rowToDomain(result.rows[0]);
+}
+
+export async function upsertDomain(workspaceId: string, input: DomainWriteInput): Promise<Domain> {
+  const label = input.label && input.label.trim().length > 0 ? input.label : humanize(input.id);
+  const sql = `
+    INSERT INTO domains (workspace_id, id, label, description, color, position)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (workspace_id, id) DO UPDATE SET
+      label       = EXCLUDED.label,
+      description = EXCLUDED.description,
+      color       = EXCLUDED.color,
+      position    = EXCLUDED.position
+    RETURNING ${DOMAIN_COLS}
+  `;
+  const result = await query(sql, [
+    workspaceId,
+    input.id,
+    label,
+    input.description ?? '',
+    input.color ?? null,
+    input.position ?? 100,
+  ]);
+  return rowToDomain(result.rows[0]);
+}
+
+export interface DeleteDomainOptions {
+  // If provided, reassigns every node currently in this domain to `moveTo`
+  // (which must exist) before deleting. If omitted and the domain still has
+  // nodes, the FK rejects the delete and we return 'has_nodes'.
+  moveTo?: string;
+}
+
+export type DeleteDomainResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'has_nodes'; node_count: number }
+  | { ok: false; reason: 'move_target_missing' };
+
+export async function deleteDomain(
+  workspaceId: string,
+  id: string,
+  options: DeleteDomainOptions = {},
+): Promise<DeleteDomainResult> {
+  return withTransaction(async (client) => {
+    const existing = await client.query(
+      `SELECT 1 FROM domains WHERE workspace_id = $1 AND id = $2`,
+      [workspaceId, id],
+    );
+    if (existing.rowCount === 0) return { ok: false, reason: 'not_found' };
+
+    if (options.moveTo) {
+      const target = await client.query(
+        `SELECT 1 FROM domains WHERE workspace_id = $1 AND id = $2`,
+        [workspaceId, options.moveTo],
+      );
+      if (target.rowCount === 0) return { ok: false, reason: 'move_target_missing' };
+      await client.query(
+        `UPDATE nodes SET domain = $3 WHERE workspace_id = $1 AND domain = $2`,
+        [workspaceId, id, options.moveTo],
+      );
+    } else {
+      const count = await client.query<{ cnt: string }>(
+        `SELECT COUNT(*)::text AS cnt FROM nodes WHERE workspace_id = $1 AND domain = $2`,
+        [workspaceId, id],
+      );
+      const n = Number(count.rows[0]?.cnt ?? 0);
+      if (n > 0) return { ok: false, reason: 'has_nodes', node_count: n };
+    }
+
+    await client.query(`DELETE FROM domains WHERE workspace_id = $1 AND id = $2`, [workspaceId, id]);
+    return { ok: true };
+  });
+}
+
+// Auto-create a domain row when a node is being written into a domain that
+// doesn't exist yet. Idempotent — ON CONFLICT DO NOTHING. Called inside the
+// node write transaction so the FK from nodes -> domains is always satisfied.
+async function ensureDomain(
+  client: pg.PoolClient,
+  workspaceId: string,
+  domainId: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO domains (workspace_id, id, label)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (workspace_id, id) DO NOTHING`,
+    [workspaceId, domainId, humanize(domainId)],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +443,8 @@ export async function createNode(
   return withTransaction(async (client) => {
     await client.query(`SELECT set_config('kb.changed_by', $1, true)`, [options.changed_by ?? 'unknown']);
     await client.query(`SELECT set_config('kb.change_summary', $1, true)`, [options.change_summary ?? 'initial']);
+    // Auto-create the domain row if it doesn't exist yet — the FK requires one.
+    await ensureDomain(client, workspaceId, input.domain);
     const sql = `
       INSERT INTO nodes (workspace_id, id, title, body, domain, tags, metadata)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -318,6 +471,7 @@ export async function upsertNode(
   return withTransaction(async (client) => {
     await client.query(`SELECT set_config('kb.changed_by', $1, true)`, [options.changed_by ?? 'unknown']);
     await client.query(`SELECT set_config('kb.change_summary', $1, true)`, [options.change_summary ?? '']);
+    await ensureDomain(client, workspaceId, input.domain);
     const sql = `
       INSERT INTO nodes (workspace_id, id, title, body, domain, tags, metadata)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -359,6 +513,9 @@ export async function updateNode(
     await client.query(`SELECT set_config('kb.changed_by', $1, true)`, [options.changed_by ?? 'unknown']);
     await client.query(`SELECT set_config('kb.change_summary', $1, true)`, [options.change_summary ?? '']);
 
+    const newDomain = patch.domain ?? cur.domain;
+    if (newDomain !== cur.domain) await ensureDomain(client, workspaceId, newDomain);
+
     const sql = `
       UPDATE nodes SET
         title = $3,
@@ -374,7 +531,7 @@ export async function updateNode(
       id,
       patch.title ?? cur.title,
       patch.body ?? cur.body,
-      patch.domain ?? cur.domain,
+      newDomain,
       patch.tags ?? cur.tags,
       patch.metadata ?? cur.metadata,
     ]);

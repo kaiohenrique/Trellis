@@ -41,6 +41,30 @@ CREATE TRIGGER workspaces_updated_at
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- domains — managed list of node categories per workspace.
+-- Stored as a real entity so the UI can display labels, colors, descriptions.
+-- nodes.domain references domains.id via a composite FK (workspace_id, id).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS domains (
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  id           text NOT NULL,                       -- slug, e.g. "books"
+  label        text NOT NULL,                       -- "Books"
+  description  text NOT NULL DEFAULT '',
+  color        text,                                -- hex; null = client hashes
+  position     integer NOT NULL DEFAULT 100,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS domains_ws_position_idx ON domains (workspace_id, position, label);
+
+DROP TRIGGER IF EXISTS domains_updated_at ON domains;
+CREATE TRIGGER domains_updated_at
+  BEFORE UPDATE ON domains
+  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ---------------------------------------------------------------------------
 -- nodes — primary content. id is unique within a workspace.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS nodes (
@@ -55,7 +79,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   search_vector tsvector GENERATED ALWAYS AS (kb_search_text(title, body, tags)) STORED,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (workspace_id, id)
+  PRIMARY KEY (workspace_id, id),
+  FOREIGN KEY (workspace_id, domain) REFERENCES domains (workspace_id, id) ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS nodes_ws_domain_idx ON nodes (workspace_id, domain);

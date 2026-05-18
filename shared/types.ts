@@ -9,15 +9,24 @@ export interface Workspace {
   updated_at: string;
 }
 
-export type Domain =
-  | 'concepts'
-  | 'architectures'
-  | 'tools'
-  | 'workflows'
-  | 'papers'
-  | 'people'
-  | 'models'
-  | string;
+// First-class Domain entity, scoped to a workspace.
+// `id` is the slug stored on `nodes.domain`. The seven seed domains
+// (concepts, architectures, tools, workflows, papers, people, models)
+// are conventions — any string is valid as long as a row exists in the
+// `domains` table for the same workspace.
+export interface Domain {
+  id: string;            // slug, FK target of nodes.domain
+  label: string;         // human-readable display name
+  description: string;
+  color: string | null;  // hex like "#6D28D9"; null → client uses hashed fallback
+  position: number;      // sort order on Home grid (lower = first)
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DomainWithCount extends Domain {
+  node_count: number;
+}
 
 export interface Node {
   id: string;

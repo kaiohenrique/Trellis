@@ -1,16 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useNodes } from '../hooks/useNodes';
+import { useDomains } from '../hooks/useDomains';
 import { NodeCard } from '../components/NodeCard';
 import { useWorkspaceId } from '../context/WorkspaceContext';
-
-const DOMAINS = ['concepts', 'architectures', 'tools', 'workflows', 'papers', 'people', 'models'];
+import { domainBadgeColors } from '../lib/domain-color';
 
 export function Home() {
   const ws = useWorkspaceId();
   const { data: nodes } = useNodes();
-
-  const byDomain = new Map<string, number>();
-  for (const n of nodes ?? []) byDomain.set(n.domain, (byDomain.get(n.domain) ?? 0) + 1);
+  const { data: domains } = useDomains();
 
   const recent = (nodes ?? []).slice(0, 8);
 
@@ -21,14 +19,37 @@ export function Home() {
         A graph of concepts, architectures, tools, workflows, papers, and people for building agents.
       </p>
 
-      <div className="section-title">Domains</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <div className="section-title">Domains</div>
+        <Link
+          to={`/workspaces/${ws}/manage/domains`}
+          style={{ fontSize: 12, color: 'var(--text-muted)', border: 'none' }}
+        >
+          Manage domains →
+        </Link>
+      </div>
       <div className="home-grid">
-        {DOMAINS.map((d) => (
-          <Link key={d} to={`/workspaces/${ws}/manage?domain=${d}`} className="home-domain-card">
-            <h3>{d}</h3>
-            <div className="count">{byDomain.get(d) ?? 0} pages</div>
-          </Link>
-        ))}
+        {(domains ?? []).map((d) => {
+          const { fg, bg } = domainBadgeColors(d.color, d.id);
+          return (
+            <Link
+              key={d.id}
+              to={`/workspaces/${ws}/manage?domain=${d.id}`}
+              className="home-domain-card"
+              style={{ borderLeft: `3px solid ${fg}` }}
+            >
+              <h3>{d.label}</h3>
+              <div className="count">{d.node_count} {d.node_count === 1 ? 'page' : 'pages'}</div>
+              {d.description && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {d.description}
+                </div>
+              )}
+              <span style={{ display: 'none' }} aria-hidden>{bg}</span>
+            </Link>
+          );
+        })}
+        {(!domains || domains.length === 0) && <div className="empty">No domains yet.</div>}
       </div>
 
       <div className="section-title">Recently updated</div>

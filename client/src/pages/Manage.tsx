@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useNodes } from '../hooks/useNodes';
+import { useDomains } from '../hooks/useDomains';
 import { DomainBadge } from '../components/DomainBadge';
 import { createNode, getGraph } from '../api';
 import { useWorkspaceId } from '../context/WorkspaceContext';
@@ -10,12 +11,18 @@ export function Manage() {
   const [params] = useSearchParams();
   const domain = params.get('domain') || undefined;
   const { data: nodes, refetch } = useNodes(domain ? { domain } : {});
+  const { data: domains } = useDomains();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ id: '', title: '', domain: domain ?? 'concepts', tags: '' });
+  const [form, setForm] = useState({
+    id: '',
+    title: '',
+    domain: domain ?? 'concepts',
+    tags: '',
+  });
 
   const submit = async () => {
-    if (!form.id || !form.title) return;
+    if (!form.id || !form.title || !form.domain) return;
     const created = await createNode(ws, {
       id: form.id,
       title: form.title,
@@ -43,13 +50,18 @@ export function Manage() {
 
   return (
     <div className="container wide">
-      <h1 className="page-title">All pages{domain && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> · {domain}</span>}</h1>
+      <h1 className="page-title">
+        All pages{domain && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> · {domain}</span>}
+      </h1>
       <p className="page-subtitle">Every page in this workspace, sorted alphabetically.</p>
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         <button className="accent" onClick={() => setShowCreate((s) => !s)}>
           {showCreate ? 'Cancel' : '+ New page'}
         </button>
         <button className="outline" onClick={exportJson}>Export JSON</button>
+        <Link to={`/workspaces/${ws}/manage/domains`}>
+          <button className="outline">Manage domains</button>
+        </Link>
         <div style={{ flex: 1 }} />
         <span style={{ color: 'var(--text-muted)', alignSelf: 'center', fontSize: 13 }}>{sorted.length} pages</span>
       </div>
@@ -67,20 +79,30 @@ export function Manage() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
-            <select value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })}>
-              <option value="concepts">concepts</option>
-              <option value="architectures">architectures</option>
-              <option value="tools">tools</option>
-              <option value="workflows">workflows</option>
-              <option value="papers">papers</option>
-              <option value="people">people</option>
-              <option value="models">models</option>
-            </select>
+            {/* Free-text input with datalist — pick an existing domain or
+                type a new slug. The server auto-creates the domain row. */}
+            <input
+              list="domains-datalist"
+              placeholder="domain (slug)"
+              value={form.domain}
+              onChange={(e) =>
+                setForm({ ...form, domain: e.target.value.replace(/[^a-z0-9_-]/gi, '').toLowerCase() })
+              }
+            />
+            <datalist id="domains-datalist">
+              {(domains ?? []).map((d) => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </datalist>
             <input
               placeholder="tags (comma-separated)"
               value={form.tags}
               onChange={(e) => setForm({ ...form, tags: e.target.value })}
             />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            Tip: type any new slug for <code>domain</code> — it'll be auto-created and you can give it
+            a proper label/color from <Link to={`/workspaces/${ws}/manage/domains`}>Manage domains</Link>.
           </div>
           <div style={{ marginTop: 8 }}>
             <button className="primary" onClick={submit}>Create</button>

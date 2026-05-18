@@ -1,11 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useGraph } from '../hooks/useGraph';
-import { DOMAIN_COLORS, GraphCanvas } from '../components/GraphCanvas';
+import { GraphCanvas } from '../components/GraphCanvas';
+import { useDomains } from '../hooks/useDomains';
+import { hashedColor } from '../lib/domain-color';
 
 export function GraphView() {
   const { data, isLoading } = useGraph();
+  const { data: domains } = useDomains();
   const [enabledDomains, setEnabledDomains] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+
+  const colorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of domains ?? []) if (d.color) m.set(d.id, d.color);
+    return m;
+  }, [domains]);
+  const domainColor = (id: string) => colorMap.get(id) ?? hashedColor(id);
 
   const allDomains = useMemo(() => {
     const set = new Set<string>();
@@ -69,7 +79,7 @@ export function GraphView() {
                   width: 10,
                   height: 10,
                   borderRadius: 2,
-                  background: DOMAIN_COLORS[d] ?? DOMAIN_COLORS.default,
+                  background: domainColor(d),
                 }}
               />
               {d}
