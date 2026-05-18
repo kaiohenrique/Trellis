@@ -1,0 +1,18 @@
+{
+  "name": "trellis",
+  "owner": {
+    "name": "Kaio Henrique",
+    "url": "https://github.com/kaiohenrique"
+  },
+  "description": "Trellis — AI agent knowledge base. Plugin connects Claude Code to your running Trellis instance.",
+  "plugins": [
+    {
+      "name": "trellis-kb",
+      "source": "./",
+      "description": "Skill + slash commands + Stop hook that auto-maintain a Trellis knowledge graph from inside Claude Code.",
+      "version": "0.1.0",
+      "category": "knowledge",
+      "keywords": ["knowledge-base", "ai-agents", "mcp", "memory"]
+    }
+  ]
+}

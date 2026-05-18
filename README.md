@@ -282,17 +282,20 @@ await kb.widget('paris-weather', 'Paris weather', {
 
 ---
 
-## MCP — Claude Code integration
+## Use it from Claude Code
 
-The server exposes an MCP endpoint at `/mcp` (SSE transport). Register it once and Claude Code (or any MCP-aware client) discovers the tools.
+There are three install paths, in increasing order of "Claude Code does it automatically".
 
-### Via CLI
+### 1. Bare MCP — manual
+
+The server exposes an MCP endpoint at `/mcp` (SSE transport). Register it once and Claude Code (or
+any MCP-aware client) discovers the tools.
 
 ```bash
 claude mcp add --transport sse trellis http://localhost:3000/mcp
 ```
 
-### Via `.mcp.json` (versioned in the repo)
+Or via `.mcp.json` checked into your project root:
 
 ```json
 {
@@ -305,24 +308,65 @@ claude mcp add --transport sse trellis http://localhost:3000/mcp
 }
 ```
 
-Then inside a Claude Code session: `/mcp` shows connection status and the available tools.
+This gives Claude Code access to the tools but it'll only use them when you ask. No automatic
+memory behavior.
+
+### 2. Plugin — automatic behavior (recommended)
+
+Trellis ships with a **Claude Code plugin** that wires up:
+
+- The MCP server registration (you don't need step 1)
+- A `trellis-memory` skill that auto-activates on agent-related conversations
+- Slash commands: `/kb-search`, `/kb-remember`, `/kb-link`, `/kb-domains`, `/kb-context`
+- A Stop hook that nudges the model to checkpoint generalizable knowledge before ending the turn
+
+Install:
+
+```bash
+# Inside a Claude Code session
+/plugin marketplace add kaiohenrique/Trellis
+/plugin install trellis-kb@trellis
+```
+
+After install, any conversation about AI agents will:
+
+- Search the KB before answering
+- Reference existing nodes with `[[wikilinks]]`
+- Save new generalizable learnings as nodes with typed edges
+- Skip ephemeral content (debugging, project-specific stuff)
+
+The plugin lives in [`.claude-plugin/`](.claude-plugin) — open it to read the skill instructions
+and slash commands. Configure via env vars:
+
+| Env var | Default | What it does |
+|---|---|---|
+| `TRELLIS_URL` | `http://localhost:3000/mcp` | Where the plugin's MCP client connects |
+| `TRELLIS_WORKSPACE` | `ai-agents` | Default workspace for skill + commands |
+
+### 3. Project-local override
+
+If you want different KB behavior per project (e.g. different default workspace, or different
+trigger rules), drop a project-level `CLAUDE.md` and a project-level `.mcp.json` in the project
+root. They override the plugin defaults in that project only.
 
 ### Tools exposed
 
 | Tool | What it does |
 |---|---|
 | `kb_workspace_list` / `kb_workspace_get` / `kb_workspace_create` | Workspace registry |
+| `kb_domain_list` / `kb_domain_get` / `kb_domain_save` | Domain entity registry |
 | `kb_get`, `kb_list`, `kb_search`, `kb_query` | Read nodes |
 | `kb_save`, `kb_link` | Write nodes + edges |
 | `kb_run` | Execute a JS/Python script in the workspace sandbox |
 | `kb_neighbors`, `kb_graph` | Graph traversal |
 | `kb_widget_list` / `kb_widget_get` / `kb_widget_save` / `kb_widget_refresh_data` | Widgets |
 
-Every data tool requires a `workspace_id` argument — there is no "current workspace" session state.
+Every data tool requires `workspace_id` — there is no "current workspace" session state on the
+server. The plugin's skill and slash commands inject the default from `TRELLIS_WORKSPACE`.
 
 ### Auth
 
-If `KB_AUTH_TOKEN` is set, supply it in the MCP client config:
+If `KB_AUTH_TOKEN` is set on the server, supply it in the MCP client config:
 
 ```json
 {
@@ -334,20 +378,6 @@ If `KB_AUTH_TOKEN` is set, supply it in the MCP client config:
     }
   }
 }
-```
-
-### Telling Claude Code when to use it
-
-Add a `CLAUDE.md` in your project so the model uses the KB without being asked:
-
-```markdown
-# Knowledge base
-
-An MCP server `trellis` is connected with the workspace `ai-agents`. Before
-answering questions about agent concepts, frameworks, or techniques, run
-`kb_search` first. After learning something new in a conversation, save it via
-`kb_save` with the appropriate `domain` and tags, and link to existing nodes
-with `kb_link`.
 ```
 
 ---

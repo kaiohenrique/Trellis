@@ -1,0 +1,33 @@
+{
+  "name": "trellis-kb",
+  "version": "0.1.0",
+  "description": "Turn Claude Code into a Trellis-aware second brain. Connects to a running Trellis instance over MCP, auto-searches the graph before answering questions about AI agents, and saves new learnings as nodes with wikilinks.",
+  "author": {
+    "name": "Trellis",
+    "url": "https://github.com/kaiohenrique/Trellis"
+  },
+  "homepage": "https://github.com/kaiohenrique/Trellis",
+  "license": "MIT",
+  "keywords": ["knowledge-base", "ai-agents", "mcp", "memory", "graph"],
+
+  "mcpServers": {
+    "trellis": {
+      "type": "sse",
+      "url": "${TRELLIS_URL:-http://localhost:3000/mcp}"
+    }
+  },
+
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"Before ending: scan this turn for new agent knowledge. If anything is generalizable (a new concept, paper, framework, person, workflow, model) and not already in the kb, save it via kb_save in workspace '${TRELLIS_WORKSPACE:-ai-agents}', then link it to related existing nodes via kb_link. Skip ephemeral content (debugging, one-off Q&A). If nothing is worth saving, just say so and stop.\""
+          }
+        ]
+      }
+    ]
+  }
+}
