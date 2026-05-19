@@ -492,6 +492,191 @@ textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
    Wiki / node page
 --------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+   Article layout — domain as long-form reading view
+--------------------------------------------------------------------------- */
+
+.article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .article-layout { grid-template-columns: 1fr; }
+  .article-toc { display: none; }
+}
+
+.article-main { min-width: 0; }
+
+.article-header {
+  margin-bottom: 32px;
+}
+
+.article-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.article-section {
+  padding: 32px 0 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+.article-section:last-child { border-bottom: none; }
+
+.article-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.article-section-header h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  flex: 1;
+  min-width: 0;
+  scroll-margin-top: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anchor-link {
+  border: none;
+  color: var(--text-subtle);
+  opacity: 0;
+  font-weight: 400;
+  font-size: 18px;
+  transition: opacity 120ms ease;
+}
+.article-section-header h2:hover .anchor-link { opacity: 1; }
+.anchor-link:hover { color: var(--accent); }
+.anchor-glyph { font-family: var(--font-serif); }
+
+.article-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ghost-link {
+  font-size: 12px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 3px 9px;
+  border-radius: 4px;
+}
+.ghost-link:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+  border-bottom-color: var(--text-muted);
+}
+
+.article-section-edges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: 12.5px;
+}
+.article-edges-label {
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 11px;
+  margin-right: 4px;
+}
+.article-edge-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 6px;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--text);
+  border: none;
+}
+.article-edge-link:hover { background: var(--bg-code); }
+.article-edge-relation {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--bg-panel);
+  border-radius: 999px;
+}
+
+.wiki-anchor-link {
+  color: var(--text);
+  border-bottom: 1px dashed var(--text-subtle);
+  cursor: pointer;
+}
+.wiki-anchor-link:hover { border-bottom-color: var(--accent); border-bottom-style: solid; }
+
+/* TOC */
+.article-toc {
+  position: sticky;
+  top: 32px;
+  align-self: start;
+  font-size: 13px;
+}
+.article-toc-inner {
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+}
+.article-toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-subtle);
+  margin-bottom: 10px;
+}
+.article-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.article-toc-list a {
+  display: block;
+  padding: 3px 0 3px 8px;
+  margin-left: -8px;
+  border-left: 2px solid transparent;
+  color: var(--text-muted);
+  border-bottom: none;
+  line-height: 1.4;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.article-toc-list a:hover { color: var(--text); border-bottom: none; }
+.article-toc-list a.active {
+  color: var(--text);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+
+/* Color dot for sidebar domain list */
+.domain-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* ---------------------------------------------------------------------------
+   Node page (editor view — kept for direct linking + editing)
+--------------------------------------------------------------------------- */
+
 .node-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;

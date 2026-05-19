@@ -30,22 +30,23 @@ export function Home() {
       </div>
       <div className="home-grid">
         {(domains ?? []).map((d) => {
-          const { fg, bg } = domainBadgeColors(d.color, d.id);
+          const { fg } = domainBadgeColors(d.color, d.id);
           return (
             <Link
               key={d.id}
-              to={`/workspaces/${ws}/manage?domain=${d.id}`}
+              to={`/workspaces/${ws}/domain/${d.id}`}
               className="home-domain-card"
               style={{ borderLeft: `3px solid ${fg}` }}
             >
               <h3>{d.label}</h3>
-              <div className="count">{d.node_count} {d.node_count === 1 ? 'page' : 'pages'}</div>
+              <div className="count">
+                Read · {d.node_count} {d.node_count === 1 ? 'section' : 'sections'}
+              </div>
               {d.description && (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   {d.description}
                 </div>
               )}
-              <span style={{ display: 'none' }} aria-hidden>{bg}</span>
             </Link>
           );
         })}

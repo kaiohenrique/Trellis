@@ -14,9 +14,13 @@ The name: a *trellis* is a lattice structure that supports climbing plants. Same
 
 ## Screenshots
 
-| Home | Page (with mermaid + backlinks) |
+| Home | Domain article (long-form, scrollable, sticky TOC) |
 | :--: | :--: |
-| ![home](docs/screenshots/home.png) | ![node](docs/screenshots/node-page.png) |
+| ![home](docs/screenshots/home.png) | ![concepts](docs/screenshots/article-concepts.png) |
+
+| Tools article | Single node (editor view) |
+| :--: | :--: |
+| ![tools](docs/screenshots/article-tools.png) | ![node](docs/screenshots/node-page.png) |
 
 | Graph | All pages |
 | :--: | :--: |
@@ -36,7 +40,7 @@ The name: a *trellis* is a lattice structure that supports climbing plants. Same
 - **MCP server** — Model Context Protocol over SSE at `/mcp`, so any MCP-aware agent (Claude Code, Claude Desktop, etc.) can read and write the graph.
 - **Script sandbox** — `POST /run` executes JS in a `vm` sandbox with a workspace-scoped `kb` SDK injected, plus `fetch` for third-party APIs. Python supported via subprocess.
 - **Widgets** — persistent, renderable outputs from agent scripts. Renderer + data are independent: `vega-lite` (charts), `table`, `markdown` (with templates), `graph` (arbitrary node/edge graphs), and `html` (sandboxed iframe escape hatch).
-- **Wiki UI** — Notion-shaped React SPA. Sidebar nav, search, mermaid + wikilink-aware markdown, in-place CodeMirror editor with `[[`-autocomplete, threaded comments, version history with side-by-side diff, force-directed graph view.
+- **Reading UI** — Notion-shaped React SPA. **Long-form article view**: opening a domain shows every node concatenated as sections with a sticky TOC and scroll-spy — read a whole subject in one flow instead of clicking node-by-node. Wikilinks between in-article nodes scroll smoothly. Editing per node (CodeMirror with `[[`-autocomplete), threaded comments, version history with side-by-side diff, force-directed graph view.
 - **Versioning** — every save snapshots into `node_versions`. Diff and restore from the UI.
 
 ---

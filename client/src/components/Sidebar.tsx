@@ -146,8 +146,8 @@ function WorkspaceSidebar() {
         ))}
       </nav>
 
-      <div className="sidebar-section">Recently edited</div>
-      <RecentNodes />
+      <div className="sidebar-section">Read</div>
+      <DomainNav />
 
       <div className="sidebar-footer">
         <Link to="/workspaces" style={{ border: 'none', color: 'inherit' }}>
@@ -314,26 +314,36 @@ function SidebarSearch() {
   );
 }
 
-function RecentNodes() {
+function DomainNav() {
   const ws = useWorkspaceId();
-  const { data } = useQuery({
-    queryKey: ['recent-nodes', ws],
-    queryFn: async () => {
-      const all = await fetch(`/api/v1/workspaces/${ws}/nodes?limit=8`).then((r) => r.json());
-      return all.data as { id: string; title: string; domain: string }[];
-    },
+  const location = useLocation();
+  const { data: domains } = useQuery({
+    queryKey: ['domains', ws],
+    queryFn: () => fetch(`/api/v1/workspaces/${ws}/domains`).then((r) => r.json()).then((j) => j.data as Array<{ id: string; label: string; color: string | null; node_count: number }>),
   });
-  if (!data || data.length === 0) return null;
+  if (!domains || domains.length === 0) return null;
   return (
     <nav className="sidebar-nav">
-      {data.slice(0, 6).map((n) => (
-        <Link key={n.id} to={`/workspaces/${ws}/wiki/${n.id}`} className="nav-item">
-          <span className="nav-icon" style={{ fontSize: 13 }}>·</span>
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {n.title}
-          </span>
-        </Link>
-      ))}
+      {domains
+        .filter((d) => d.node_count > 0)
+        .map((d) => {
+          const to = `/workspaces/${ws}/domain/${d.id}`;
+          const active = location.pathname === to;
+          return (
+            <Link key={d.id} to={to} className={`nav-item ${active ? 'active' : ''}`}>
+              <span
+                className="domain-dot"
+                style={{ background: d.color ?? '#94a3b8' }}
+              />
+              <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {d.label}
+              </span>
+              <span style={{ color: 'var(--text-subtle)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                {d.node_count}
+              </span>
+            </Link>
+          );
+        })}
     </nav>
   );
 }

@@ -61,6 +61,9 @@ export function NodePage() {
                 <Link to={`/workspaces/${ws}/wiki/${node.id}/history`}>
                   <button>History</button>
                 </Link>
+                <Link to={`/workspaces/${ws}/domain/${node.domain}#node-${node.id}`}>
+                  <button>Read in article</button>
+                </Link>
                 <div style={{ flex: 1 }} />
                 <button onClick={goDelete} className="danger">Delete</button>
               </div>

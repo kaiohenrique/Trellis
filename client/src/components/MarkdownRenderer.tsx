@@ -10,6 +10,11 @@ import { WikiLinkPopover } from './WikiLinkPopover';
 interface Props {
   body: string;
   inline?: boolean;
+  // When provided, wikilinks pointing at any id in this set render as in-page
+  // anchor scrolls (#node-<id>) instead of router navigation. Used by the
+  // article view so cross-references within an article scroll smoothly
+  // instead of bouncing to /wiki/:id.
+  inPageNodes?: Set<string>;
 }
 
 const WIKILINK_RE = /\[\[([a-zA-Z0-9_\-]+)(?:\|([^\]]+))?\]\]/g;
@@ -29,7 +34,7 @@ function extractMermaidSource(node: unknown): string | null {
   return String(el.props.children ?? '').replace(/\n$/, '');
 }
 
-export function MarkdownRenderer({ body, inline = false }: Props) {
+export function MarkdownRenderer({ body, inline = false, inPageNodes }: Props) {
   const processed = preprocessWikilinks(body);
 
   const components: Components = {
@@ -37,6 +42,22 @@ export function MarkdownRenderer({ body, inline = false }: Props) {
       const text = Array.isArray(children) ? children.join('') : String(children ?? '');
       if (href && href.startsWith('/wiki/')) {
         const id = href.slice('/wiki/'.length);
+        if (inPageNodes?.has(id)) {
+          return (
+            <a
+              href={`#node-${id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                document
+                  .getElementById(`node-${id}`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="wiki-anchor-link"
+            >
+              {text}
+            </a>
+          );
+        }
         return <WikiLinkPopover id={id} label={text} />;
       }
       if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
