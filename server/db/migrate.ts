@@ -174,6 +174,38 @@ const WORKSPACE_MIGRATION_SQL = `
   $func$;
 `;
 
+// Reading-lists migration — purely additive (no existing data touched).
+const READING_LISTS_MIGRATION_SQL = `
+  CREATE TABLE reading_lists (
+    workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    id           text NOT NULL,
+    title        text NOT NULL,
+    description  text NOT NULL DEFAULT '',
+    created_by   text NOT NULL DEFAULT 'unknown',
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (workspace_id, id)
+  );
+  CREATE TRIGGER reading_lists_updated_at
+    BEFORE UPDATE ON reading_lists
+    FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+  CREATE TABLE reading_list_items (
+    workspace_id    text NOT NULL,
+    reading_list_id text NOT NULL,
+    node_id         text NOT NULL,
+    position        integer NOT NULL,
+    note            text NOT NULL DEFAULT '',
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (workspace_id, reading_list_id, node_id),
+    FOREIGN KEY (workspace_id, reading_list_id)
+      REFERENCES reading_lists (workspace_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id, node_id)
+      REFERENCES nodes (workspace_id, id) ON DELETE CASCADE
+  );
+  CREATE INDEX reading_list_items_pos_idx
+    ON reading_list_items (workspace_id, reading_list_id, position);
+`;
+
 // Domain entity migration. Creates the domains table, seeds it with one row
 // per distinct (workspace_id, domain) seen in nodes, then adds the FK.
 //
@@ -271,6 +303,17 @@ export async function migrate(): Promise<void> {
       await client.query(DOMAINS_MIGRATION_SQL);
     });
     console.log('[migrate] domains migration done');
+    return;
+  }
+
+  // Reading lists migration: add curated-selection tables.
+  const hasReadingLists = await tableExists('reading_lists');
+  if (!hasReadingLists) {
+    console.log('[migrate] adding reading_lists + reading_list_items...');
+    await withClient(async (client) => {
+      await client.query(READING_LISTS_MIGRATION_SQL);
+    });
+    console.log('[migrate] reading lists migration done');
     return;
   }
 

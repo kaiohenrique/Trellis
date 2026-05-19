@@ -28,6 +28,33 @@ export interface DomainWithCount extends Domain {
   node_count: number;
 }
 
+// Reading list — a curated, ordered selection of nodes that may span domains.
+// Items have a `position` for stable ordering and an optional editorial `note`
+// that appears above the node body in the article view (e.g. "skip the math
+// section, read for intuition only").
+export interface ReadingList {
+  id: string;
+  title: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReadingListItem {
+  node_id: string;
+  position: number;
+  note: string;
+}
+
+export interface ReadingListWithItems extends ReadingList {
+  items: ReadingListItem[];
+}
+
+export interface ReadingListSummary extends ReadingList {
+  item_count: number;
+}
+
 export interface Node {
   id: string;
   title: string;

@@ -10,6 +10,7 @@ import { edgesRouter } from './routes/edges.js';
 import { graphRouter } from './routes/graph.js';
 import { nodesRouter } from './routes/nodes.js';
 import { queryRouter } from './routes/query.js';
+import { readingListsRouter } from './routes/reading-lists.js';
 import { scriptsRouter } from './routes/scripts.js';
 import { versionsRouter } from './routes/versions.js';
 import { widgetsRouter } from './routes/widgets.js';
@@ -68,6 +69,7 @@ export async function buildApp(): Promise<express.Application> {
   wsRouter.use('/graph', graphRouter);
   wsRouter.use('/widgets', widgetsRouter);
   wsRouter.use('/domains', domainsRouter);
+  wsRouter.use('/reading-lists', readingListsRouter);
   api.use('/workspaces/:workspaceId', wsRouter);
 
   app.use('/api/v1', api);

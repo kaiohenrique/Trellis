@@ -1,41 +1,48 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import mermaid from 'mermaid';
+import { useInViewport } from '../hooks/useInViewport';
 
 interface Props {
   code: string;
 }
 
 function uid(): string {
-  // Letter-prefixed so it's a valid CSS/HTML id, and unique enough that
-  // strict-mode double mounts and parallel renders don't collide.
   return `mmd-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 }
 
+// Lazy: mermaid.render() is heavy and serializes (singleton id generator).
+// We hold off until the block is within 500px of the viewport so a 100-section
+// article with mermaid diagrams paints in <1s instead of >5s.
 export function MermaidBlock({ code }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [setVisibilityRef, visible] = useInViewport<HTMLDivElement>({ rootMargin: '500px 0px' });
+  const [svgEl, setSvgEl] = useState<HTMLDivElement | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const setRefs = (el: HTMLDivElement | null) => {
+    setSvgEl(el);
+    setVisibilityRef(el);
+  };
 
   useEffect(() => {
+    if (!visible || !svgEl) return;
     let cancelled = false;
     const id = uid();
     mermaid
       .render(id, code)
       .then(({ svg, bindFunctions }) => {
-        if (cancelled || !ref.current) return;
-        ref.current.innerHTML = svg;
-        if (bindFunctions) bindFunctions(ref.current);
+        if (cancelled || !svgEl) return;
+        svgEl.innerHTML = svg;
+        if (bindFunctions) bindFunctions(svgEl);
         setErr(null);
       })
       .catch((e) => {
         if (cancelled) return;
         setErr(e instanceof Error ? e.message : String(e));
-        // Mermaid leaves the throwaway element behind on failure
         document.getElementById(`d${id}`)?.remove();
       });
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, visible, svgEl]);
 
   if (err) {
     return (
@@ -46,5 +53,9 @@ export function MermaidBlock({ code }: Props) {
       </pre>
     );
   }
-  return <div className="mermaid" ref={ref} />;
+  return (
+    <div className="mermaid" ref={setRefs} style={{ minHeight: visible ? undefined : 120 }}>
+      {!visible && <div className="mermaid-placeholder">diagram</div>}
+    </div>
+  );
 }

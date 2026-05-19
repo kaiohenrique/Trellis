@@ -16,6 +16,8 @@ import { GraphView } from './pages/GraphView';
 import { Manage } from './pages/Manage';
 import { DomainsAdmin } from './pages/DomainsAdmin';
 import { DomainArticle } from './pages/DomainArticle';
+import { ReadingListsAdmin, ReadingListEdit } from './pages/ReadingListsAdmin';
+import { ReadingListPage } from './pages/ReadingListPage';
 import { WidgetPage, WidgetsList } from './pages/Widgets';
 import { lastUsedWorkspace, rememberWorkspace, WorkspacePicker } from './pages/WorkspacePicker';
 import { Sidebar } from './components/Sidebar';
@@ -38,6 +40,9 @@ export function App() {
         <Route path="manage" element={<Manage />} />
         <Route path="manage/domains" element={<DomainsAdmin />} />
         <Route path="domain/:id" element={<DomainArticle />} />
+        <Route path="reading-lists" element={<ReadingListsAdmin />} />
+        <Route path="reading-lists/:id" element={<ReadingListPage />} />
+        <Route path="reading-lists/:id/edit" element={<ReadingListEdit />} />
       </Route>
       <Route path="*" element={<RootRedirect />} />
     </Routes>

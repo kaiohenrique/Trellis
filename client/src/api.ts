@@ -11,6 +11,10 @@ import type {
   NodeVersionSummary,
   QueryInput,
   QueryResult,
+  ReadingList,
+  ReadingListItem,
+  ReadingListSummary,
+  ReadingListWithItems,
   RendererType,
   RunRequest,
   RunResponse,
@@ -57,11 +61,13 @@ const wsPath = (ws: string, suffix: string) => `/workspaces/${ws}${suffix}`;
 export const listNodes = (
   ws: string,
   params: { domain?: string; tags?: string[]; q?: string } = {},
+  limit?: number,
 ) => {
   const qs = new URLSearchParams();
   if (params.domain) qs.set('domain', params.domain);
   if (params.tags?.length) qs.set('tags', params.tags.join(','));
   if (params.q) qs.set('q', params.q);
+  if (limit) qs.set('limit', String(limit));
   const s = qs.toString();
   return req<Node[]>(wsPath(ws, `/nodes${s ? `?${s}` : ''}`));
 };
@@ -172,6 +178,48 @@ export const deleteDomain = (ws: string, id: string, move_to?: string) =>
   req<{ deleted: true }>(wsPath(ws, `/domains/${id}`), {
     method: 'DELETE',
     body: JSON.stringify(move_to ? { move_to } : {}),
+  });
+
+// ---------------------------------------------------------------------------
+// reading lists
+// ---------------------------------------------------------------------------
+
+export const listReadingLists = (ws: string) =>
+  req<ReadingListSummary[]>(wsPath(ws, '/reading-lists'));
+export const getReadingList = (ws: string, id: string) =>
+  req<ReadingListWithItems>(wsPath(ws, `/reading-lists/${id}`));
+export const createReadingList = (
+  ws: string,
+  body: { id: string; title: string; description?: string; created_by?: string },
+) => req<ReadingList>(wsPath(ws, '/reading-lists'), { method: 'POST', body: JSON.stringify(body) });
+export const updateReadingList = (
+  ws: string,
+  id: string,
+  body: { title?: string; description?: string; created_by?: string },
+) =>
+  req<ReadingList>(wsPath(ws, `/reading-lists/${id}`), {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+export const deleteReadingList = (ws: string, id: string) =>
+  req<{ deleted: true }>(wsPath(ws, `/reading-lists/${id}`), { method: 'DELETE' });
+export const addReadingListItem = (
+  ws: string,
+  id: string,
+  body: { node_id: string; position?: number; note?: string },
+) =>
+  req<ReadingListItem>(wsPath(ws, `/reading-lists/${id}/items`), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+export const removeReadingListItem = (ws: string, id: string, nodeId: string) =>
+  req<{ deleted: true }>(wsPath(ws, `/reading-lists/${id}/items/${nodeId}`), {
+    method: 'DELETE',
+  });
+export const reorderReadingList = (ws: string, id: string, order: string[]) =>
+  req<ReadingListWithItems>(wsPath(ws, `/reading-lists/${id}/order`), {
+    method: 'PUT',
+    body: JSON.stringify({ order }),
   });
 
 // ---------------------------------------------------------------------------

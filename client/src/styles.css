@@ -620,6 +620,49 @@ textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
 }
 .wiki-anchor-link:hover { border-bottom-color: var(--accent); border-bottom-style: solid; }
 
+/* Clip notice when domain exceeds article cap */
+.article-clip-notice {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-ink);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+/* Lazy section placeholder — kept narrow stripe so the page measures right */
+.article-section-placeholder {
+  background:
+    linear-gradient(var(--bg-soft) 0 0) no-repeat 0 0 / 60% 14px,
+    linear-gradient(var(--bg-soft) 0 0) no-repeat 0 24px / 90% 14px,
+    linear-gradient(var(--bg-soft) 0 0) no-repeat 0 48px / 75% 14px,
+    linear-gradient(var(--bg-soft) 0 0) no-repeat 0 72px / 85% 14px;
+  border-radius: var(--radius);
+  opacity: 0.55;
+}
+
+.mermaid-placeholder {
+  font-size: 11px;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 40px 0;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.article-section-note {
+  border-left: 3px solid var(--accent);
+  margin: 0 0 16px 0;
+  padding: 6px 14px;
+  background: var(--accent-soft);
+  font-size: 13.5px;
+  font-style: italic;
+  color: var(--accent-ink);
+}
+
 /* TOC */
 .article-toc {
   position: sticky;
@@ -627,6 +670,14 @@ textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
   align-self: start;
   font-size: 13px;
 }
+.article-toc-search {
+  font-size: 12px;
+  padding: 5px 9px;
+  margin-bottom: 8px;
+  background: transparent;
+  border-color: var(--border);
+}
+.article-toc-search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .article-toc-inner {
   border-left: 1px solid var(--border);
   padding-left: 14px;

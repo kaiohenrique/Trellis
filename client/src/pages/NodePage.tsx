@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { deleteNode, listEdges, listNodes, updateNode } from '../api';
+import { addReadingListItem, deleteNode, listEdges, listNodes, updateNode } from '../api';
+import { useReadingLists } from '../hooks/useReadingLists';
 import { useNode } from '../hooks/useNode';
 import { useWorkspaceId } from '../context/WorkspaceContext';
 import { DomainBadge } from '../components/DomainBadge';
@@ -64,6 +65,7 @@ export function NodePage() {
                 <Link to={`/workspaces/${ws}/domain/${node.domain}#node-${node.id}`}>
                   <button>Read in article</button>
                 </Link>
+                <AddToListButton nodeId={node.id} />
                 <div style={{ flex: 1 }} />
                 <button onClick={goDelete} className="danger">Delete</button>
               </div>
@@ -269,5 +271,54 @@ function RelatedSidebar({ nodeId }: { nodeId: string }) {
         </div>
       )}
     </>
+  );
+}
+
+// Inline dropdown to add the current node to one of the workspace's reading
+// lists. Stays unobtrusive: a button that reveals a small menu on click.
+function AddToListButton({ nodeId }: { nodeId: string }) {
+  const ws = useWorkspaceId();
+  const qc = useQueryClient();
+  const { data: lists } = useReadingLists();
+  const [open, setOpen] = useState(false);
+  const add = useMutation({
+    mutationFn: (listId: string) => addReadingListItem(ws, listId, { node_id: nodeId }),
+    onSuccess: (_, listId) => {
+      qc.invalidateQueries({ queryKey: ['reading-list', ws, listId] });
+      qc.invalidateQueries({ queryKey: ['reading-lists', ws] });
+      setOpen(false);
+    },
+  });
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen((o) => !o)}>+ Add to list</button>
+      {open && (
+        <div className="menu" style={{ top: 'calc(100% + 4px)', left: 0 }}>
+          {(lists ?? []).length === 0 && (
+            <div style={{ padding: 10, color: 'var(--text-muted)', fontSize: 12 }}>
+              No reading lists yet.{' '}
+              <Link to={`/workspaces/${ws}/reading-lists`}>Create one →</Link>
+            </div>
+          )}
+          {(lists ?? []).map((l) => (
+            <button
+              key={l.id}
+              className="menu-item"
+              onClick={() => add.mutate(l.id)}
+              disabled={add.isPending}
+              style={{ width: '100%', textAlign: 'left' }}
+            >
+              <span style={{ flex: 1 }}>{l.title}</span>
+              <span style={{ color: 'var(--text-subtle)', fontSize: 11 }}>{l.item_count}</span>
+            </button>
+          ))}
+          <div className="menu-divider" />
+          <Link to={`/workspaces/${ws}/reading-lists`} className="menu-item" onClick={() => setOpen(false)}>
+            <span style={{ color: 'var(--text-muted)' }}>Manage lists…</span>
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

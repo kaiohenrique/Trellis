@@ -174,6 +174,45 @@ CREATE INDEX IF NOT EXISTS widgets_ws_renderer_idx ON widgets (workspace_id, ren
 CREATE INDEX IF NOT EXISTS widgets_ws_last_run_idx ON widgets (workspace_id, last_run_at DESC);
 
 -- ---------------------------------------------------------------------------
+-- reading_lists — curated, ordered selections of nodes from any domain.
+-- Useful when a single domain's article is too long or when the reader wants
+-- a custom narrative path through the graph (e.g. "ReAct deep dive" pulling
+-- nodes from concepts, architectures, papers, people).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reading_lists (
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  id           text NOT NULL,
+  title        text NOT NULL,
+  description  text NOT NULL DEFAULT '',
+  created_by   text NOT NULL DEFAULT 'unknown',
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, id)
+);
+
+DROP TRIGGER IF EXISTS reading_lists_updated_at ON reading_lists;
+CREATE TRIGGER reading_lists_updated_at
+  BEFORE UPDATE ON reading_lists
+  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+CREATE TABLE IF NOT EXISTS reading_list_items (
+  workspace_id    text NOT NULL,
+  reading_list_id text NOT NULL,
+  node_id         text NOT NULL,
+  position        integer NOT NULL,
+  note            text NOT NULL DEFAULT '',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, reading_list_id, node_id),
+  FOREIGN KEY (workspace_id, reading_list_id)
+    REFERENCES reading_lists (workspace_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (workspace_id, node_id)
+    REFERENCES nodes (workspace_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS reading_list_items_pos_idx
+  ON reading_list_items (workspace_id, reading_list_id, position);
+
+-- ---------------------------------------------------------------------------
 -- triggers
 -- ---------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS nodes_updated_at ON nodes;

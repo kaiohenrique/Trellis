@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { Node } from '@kb/shared';
 import { getDomain, listEdges, listNodes } from '../api';
 import { useWorkspaceId } from '../context/WorkspaceContext';
-import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { DomainBadge } from '../components/DomainBadge';
+import { ArticleView } from '../components/ArticleView';
 import { domainBadgeColors } from '../lib/domain-color';
 
 export function DomainArticle() {
@@ -19,23 +18,38 @@ export function DomainArticle() {
     enabled: !!domainId,
   });
 
+  // Fetch up to the server cap. Article also receives the *total available*
+  // count via a separate cheap count query so we can show "showing X of Y"
+  // when clipped. (For now we just compare with what we got back; the API
+  // doesn't return a total separately, so the notice fires when we hit 500.)
   const { data: nodes, isLoading: nodesLoading } = useQuery({
     queryKey: ['nodes', ws, { domain: domainId, limit: 500 }],
-    queryFn: () => listNodes(ws, { domain: domainId }),
+    queryFn: () => listNodes(ws, { domain: domainId, tags: undefined, q: undefined }, 500),
     enabled: !!domainId,
   });
 
-  // Sort nodes alphabetically by title. Stable, predictable; user can pick a
-  // node id explicitly via TOC. Future: a `position` per node for manual order.
-  const sortedNodes = useMemo(() => {
-    return (nodes ?? []).slice().sort((a, b) => a.title.localeCompare(b.title));
-  }, [nodes]);
+  // One listEdges call for the whole workspace, partitioned client-side.
+  // Replaces N+1 (was one query per section).
+  const { data: edges } = useQuery({
+    queryKey: ['edges', ws, 'all'],
+    queryFn: () => listEdges(ws),
+  });
 
-  // Set of ids currently in the article — passed to MarkdownRenderer so
-  // wikilinks pointing at these targets scroll instead of navigating.
-  const inPageNodes = useMemo(
-    () => new Set(sortedNodes.map((n) => n.id)),
-    [sortedNodes],
+  // Title map for resolving outgoing edge target ids — pulled once for the
+  // whole workspace so cross-domain edges still show readable labels.
+  const { data: allNodes } = useQuery({
+    queryKey: ['nodes', ws, { all: true }],
+    queryFn: () => listNodes(ws, {}, 500),
+  });
+  const titles = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of allNodes ?? []) m.set(n.id, n.title);
+    return m;
+  }, [allNodes]);
+
+  const sortedNodes = useMemo(
+    () => (nodes ?? []).slice().sort((a, b) => a.title.localeCompare(b.title)),
+    [nodes],
   );
 
   if (domainErr) {
@@ -48,7 +62,6 @@ export function DomainArticle() {
       </div>
     );
   }
-
   if (!domain || nodesLoading) {
     return <div className="container"><div className="empty">Loading…</div></div>;
   }
@@ -56,173 +69,29 @@ export function DomainArticle() {
   const { fg } = domainBadgeColors(domain.color, domain.id);
 
   return (
-    <div className="container wide article-layout">
-      <article className="article-main">
-        <header
-          className="article-header"
-          style={{ borderLeft: `4px solid ${fg}`, paddingLeft: 16 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <DomainBadge domain={domain.id} />
-            <span style={{ color: 'var(--text-subtle)', fontSize: 13 }}>
-              {sortedNodes.length} {sortedNodes.length === 1 ? 'section' : 'sections'}
-            </span>
-          </div>
-          <h1 className="page-title">{domain.label}</h1>
-          {domain.description && (
-            <p className="page-subtitle">{domain.description}</p>
-          )}
-        </header>
-
-        {sortedNodes.length === 0 ? (
-          <div className="empty" style={{ marginTop: 32 }}>
-            No pages in this domain yet.{' '}
-            <Link to={`/workspaces/${ws}/manage?domain=${domain.id}`}>Add one</Link>.
-          </div>
-        ) : (
-          <div className="article-body">
-            {sortedNodes.map((n) => (
-              <ArticleSection key={n.id} node={n} inPageNodes={inPageNodes} ws={ws} />
-            ))}
-          </div>
-        )}
-      </article>
-
-      {sortedNodes.length > 0 && (
-        <aside className="article-toc">
-          <ArticleToc nodes={sortedNodes} />
-        </aside>
-      )}
-    </div>
-  );
-}
-
-// One section per node. The h2 is anchored via id so wikilink scrolls land here.
-function ArticleSection({
-  node,
-  inPageNodes,
-  ws,
-}: {
-  node: Node;
-  inPageNodes: Set<string>;
-  ws: string;
-}) {
-  const { data: outgoing } = useQuery({
-    queryKey: ['edges-out', ws, node.id],
-    queryFn: () => listEdges(ws, { from: node.id }),
-  });
-
-  return (
-    <section className="article-section" id={`node-${node.id}`}>
-      <div className="article-section-header">
-        <h2>
-          <a href={`#node-${node.id}`} className="anchor-link" aria-label="anchor">
-            <span className="anchor-glyph">§</span>
-          </a>
-          {node.title}
-        </h2>
-        <div className="article-section-actions">
-          {node.tags.slice(0, 4).map((t) => (
-            <span key={t} className="tag-pill">{t}</span>
-          ))}
-          <Link to={`/workspaces/${ws}/wiki/${node.id}`} className="ghost-link">
-            Edit
-          </Link>
-        </div>
-      </div>
-
-      <MarkdownRenderer body={node.body} inPageNodes={inPageNodes} />
-
-      {outgoing && outgoing.length > 0 && (
-        <div className="article-section-edges">
-          <span className="article-edges-label">Connects to:</span>
-          {outgoing.map((e) => (
-            <ArticleEdgeLink key={`${e.to}-${e.relation}`} edge={e} inPageNodes={inPageNodes} ws={ws} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ArticleEdgeLink({
-  edge,
-  inPageNodes,
-  ws,
-}: {
-  edge: { to: string; relation: string };
-  inPageNodes: Set<string>;
-  ws: string;
-}) {
-  if (inPageNodes.has(edge.to)) {
-    return (
-      <a href={`#node-${edge.to}`} className="article-edge-link">
-        <span className="article-edge-relation">{edge.relation}</span>
-        <span>{edge.to}</span>
-      </a>
-    );
-  }
-  return (
-    <Link to={`/workspaces/${ws}/wiki/${edge.to}`} className="article-edge-link">
-      <span className="article-edge-relation">{edge.relation}</span>
-      <span>{edge.to}</span>
-    </Link>
-  );
-}
-
-// Sticky TOC on the right. Uses IntersectionObserver for scroll-spy.
-function ArticleToc({ nodes }: { nodes: Node[] }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-
-  useEffect(() => {
-    // Pick the topmost section whose anchor sits above the viewport midpoint.
-    const sections = nodes
-      .map((n) => document.getElementById(`node-${n.id}`))
-      .filter((el): el is HTMLElement => el !== null);
-
-    if (sections.length === 0) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        // Find the entry closest to the top that's currently intersecting.
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) {
-          const id = visible[0].target.id.replace(/^node-/, '');
-          setActiveId(id);
+    <div className="container wide">
+      <ArticleView
+        nodes={sortedNodes}
+        edges={edges ?? []}
+        titles={titles}
+        totalAvailable={sortedNodes.length === 500 ? 500 : undefined}
+        ws={ws}
+        header={
+          <header
+            className="article-header"
+            style={{ borderLeft: `4px solid ${fg}`, paddingLeft: 16 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <DomainBadge domain={domain.id} />
+              <span style={{ color: 'var(--text-subtle)', fontSize: 13 }}>
+                {sortedNodes.length} {sortedNodes.length === 1 ? 'section' : 'sections'}
+              </span>
+            </div>
+            <h1 className="page-title">{domain.label}</h1>
+            {domain.description && <p className="page-subtitle">{domain.description}</p>}
+          </header>
         }
-      },
-      { rootMargin: '-20% 0px -70% 0px', threshold: 0 },
-    );
-
-    sections.forEach((s) => obs.observe(s));
-    observerRef.current = obs;
-    return () => obs.disconnect();
-  }, [nodes]);
-
-  return (
-    <div className="article-toc-inner">
-      <div className="article-toc-title">On this page</div>
-      <ul className="article-toc-list">
-        {nodes.map((n) => (
-          <li key={n.id}>
-            <a
-              href={`#node-${n.id}`}
-              className={activeId === n.id ? 'active' : ''}
-              onClick={(e) => {
-                e.preventDefault();
-                document
-                  .getElementById(`node-${n.id}`)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              {n.title}
-            </a>
-          </li>
-        ))}
-      </ul>
+      />
     </div>
   );
 }

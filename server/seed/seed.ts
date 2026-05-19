@@ -1,7 +1,15 @@
 import 'dotenv/config';
 import { pool } from '../db/client.js';
 import { migrate } from '../db/migrate.js';
-import { createEdge, upsertDomain, upsertNode, upsertWidget, upsertWorkspace } from '../core/graph.js';
+import {
+  addReadingListItem,
+  createEdge,
+  upsertDomain,
+  upsertNode,
+  upsertReadingList,
+  upsertWidget,
+  upsertWorkspace,
+} from '../core/graph.js';
 
 const WS = 'ai-agents';
 
@@ -523,6 +531,26 @@ async function seed(): Promise<void> {
 
   console.log('[seed] seeding widgets...');
   await seedWidgets();
+
+  console.log('[seed] seeding reading list...');
+  await upsertReadingList(WS, {
+    id: 'react-deep-dive',
+    title: 'ReAct deep dive',
+    description: 'A curated path through ReAct: the foundational concept, the paper, who wrote it, and where it appears in practice. Read top-to-bottom.',
+    created_by: 'seed',
+  });
+  const reactPath: Array<[string, string]> = [
+    ['chain-of-thought',   'Start here for the reasoning half of ReAct.'],
+    ['tool-use',           'The acting half. ReAct = CoT + tool use.'],
+    ['react-pattern',      'The pattern itself.'],
+    ['react-paper',        'The original paper.'],
+    ['yao-shunyu',         'First author. Now at OpenAI.'],
+    ['langchain',          'The framework that popularized ReAct in production.'],
+    ['code-review-agent',  'A concrete workflow that uses ReAct.'],
+  ];
+  for (const [nodeId, note] of reactPath) {
+    await addReadingListItem(WS, 'react-deep-dive', { node_id: nodeId, note });
+  }
 
   console.log('[seed] done');
 }

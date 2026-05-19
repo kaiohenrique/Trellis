@@ -3,22 +3,28 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
+  addReadingListItem,
   createEdge,
   createWorkspace,
   exportGraph,
   getDomain,
   getNode,
+  getReadingList,
   getWidget,
   getWorkspace,
   listDomains,
   listNodes,
+  listReadingLists,
   listWidgets,
   listWorkspaces,
   neighbors,
   refreshWidgetData,
+  removeReadingListItem,
+  reorderReadingList,
   searchNodes,
   upsertDomain,
   upsertNode,
+  upsertReadingList,
   upsertWidget,
 } from '../core/graph.js';
 import { runQuery } from '../core/query.js';
@@ -261,6 +267,74 @@ const TOOLS = [
       required: ['workspace_id', 'id'],
     },
   },
+
+  // ----- Reading lists -----
+  {
+    name: 'kb_list_index',
+    description: 'List all reading lists in a workspace with their item counts.',
+    inputSchema: { type: 'object', properties: { ...wsField }, required: ['workspace_id'] },
+  },
+  {
+    name: 'kb_list_get',
+    description: 'Get a reading list and its ordered items (node_id, position, note).',
+    inputSchema: {
+      type: 'object',
+      properties: { ...wsField, id: { type: 'string' } },
+      required: ['workspace_id', 'id'],
+    },
+  },
+  {
+    name: 'kb_list_save',
+    description: 'Create or update a reading list (title, description). Items managed separately via kb_list_add_item / kb_list_remove_item / kb_list_reorder.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...wsField,
+        id: { type: 'string' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        created_by: { type: 'string' },
+      },
+      required: ['workspace_id', 'id', 'title'],
+    },
+  },
+  {
+    name: 'kb_list_add_item',
+    description: 'Add a node to a reading list. If position omitted, appends at the end. Optional editorial note appears above the section in article view.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...wsField,
+        id: { type: 'string', description: 'reading list id' },
+        node_id: { type: 'string' },
+        position: { type: 'number' },
+        note: { type: 'string' },
+      },
+      required: ['workspace_id', 'id', 'node_id'],
+    },
+  },
+  {
+    name: 'kb_list_remove_item',
+    description: 'Remove a node from a reading list.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...wsField, id: { type: 'string' }, node_id: { type: 'string' } },
+      required: ['workspace_id', 'id', 'node_id'],
+    },
+  },
+  {
+    name: 'kb_list_reorder',
+    description: 'Rewrite the order of items in a reading list. Pass an array of node_ids in the desired order.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...wsField,
+        id: { type: 'string' },
+        order: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['workspace_id', 'id', 'order'],
+    },
+  },
 ];
 
 async function dispatch(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -347,6 +421,33 @@ async function dispatch(name: string, args: Record<string, unknown>): Promise<un
         color: args.color as string | null | undefined,
         position: args.position as number | undefined,
       });
+
+    case 'kb_list_index':
+      return listReadingLists(ws);
+    case 'kb_list_get':
+      return getReadingList(ws, args.id as string);
+    case 'kb_list_save':
+      return upsertReadingList(ws, {
+        id: args.id as string,
+        title: args.title as string,
+        description: args.description as string | undefined,
+        created_by: (args.created_by as string | undefined) ?? 'mcp',
+      });
+    case 'kb_list_add_item':
+      return addReadingListItem(ws, args.id as string, {
+        node_id: args.node_id as string,
+        position: args.position as number | undefined,
+        note: args.note as string | undefined,
+      });
+    case 'kb_list_remove_item': {
+      const ok = await removeReadingListItem(ws, args.id as string, args.node_id as string);
+      return { removed: ok };
+    }
+    case 'kb_list_reorder': {
+      await reorderReadingList(ws, args.id as string, args.order as string[]);
+      return getReadingList(ws, args.id as string);
+    }
+
     default:
       throw new Error(`unknown tool: ${name}`);
   }

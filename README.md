@@ -22,6 +22,10 @@ The name: a *trellis* is a lattice structure that supports climbing plants. Same
 | :--: | :--: |
 | ![tools](docs/screenshots/article-tools.png) | ![node](docs/screenshots/node-page.png) |
 
+| Reading list (curated, cross-domain) | Reading list editor |
+| :--: | :--: |
+| ![list](docs/screenshots/reading-list-react.png) | ![edit](docs/screenshots/reading-list-edit.png) |
+
 | Graph | All pages |
 | :--: | :--: |
 | ![graph](docs/screenshots/graph-view.png) | ![manage](docs/screenshots/manage.png) |
@@ -40,7 +44,18 @@ The name: a *trellis* is a lattice structure that supports climbing plants. Same
 - **MCP server** — Model Context Protocol over SSE at `/mcp`, so any MCP-aware agent (Claude Code, Claude Desktop, etc.) can read and write the graph.
 - **Script sandbox** — `POST /run` executes JS in a `vm` sandbox with a workspace-scoped `kb` SDK injected, plus `fetch` for third-party APIs. Python supported via subprocess.
 - **Widgets** — persistent, renderable outputs from agent scripts. Renderer + data are independent: `vega-lite` (charts), `table`, `markdown` (with templates), `graph` (arbitrary node/edge graphs), and `html` (sandboxed iframe escape hatch).
-- **Reading UI** — Notion-shaped React SPA. **Long-form article view**: opening a domain shows every node concatenated as sections with a sticky TOC and scroll-spy — read a whole subject in one flow instead of clicking node-by-node. Wikilinks between in-article nodes scroll smoothly. Editing per node (CodeMirror with `[[`-autocomplete), threaded comments, version history with side-by-side diff, force-directed graph view.
+- **Reading UI** — Notion-shaped React SPA with two browse modes:
+  - **Domain articles** — opening a domain shows every node concatenated as
+    sections with a sticky TOC + scroll-spy + TOC fuzzy search. Sections
+    below the fold lazy-render (placeholder until 500px from viewport), so a
+    200-node article still paints fast. Mermaid diagrams render on demand.
+    In-article wikilinks scroll smoothly; cross-article wikilinks navigate.
+  - **Reading lists** — curated, ordered selections that may span any
+    domain. Each item has an optional editorial note that appears above the
+    section body. Manage from the UI or from `kb_list_*` MCP tools, so an
+    agent can build a "learning path" through the graph and refresh it later.
+  Editing per node (CodeMirror with `[[`-autocomplete), threaded comments,
+  version history with side-by-side diff, force-directed graph view.
 - **Versioning** — every save snapshots into `node_versions`. Diff and restore from the UI.
 
 ---
@@ -200,6 +215,14 @@ All paths below are mounted under `/api/v1/workspaces/:ws/`.
 | `POST` | `/widgets` | Create/replace |
 | `PUT` | `/widgets/:id` | Replace |
 | `POST` | `/widgets/:id/run` | Re-execute the widget's source script |
+| `GET` | `/reading-lists` | List reading lists with item counts |
+| `POST` | `/reading-lists` | Create — `{ id, title, description? }` |
+| `GET` | `/reading-lists/:id` | Full list with ordered items |
+| `PUT` | `/reading-lists/:id` | Update title/description |
+| `DELETE` | `/reading-lists/:id` | Cascades to items |
+| `POST` | `/reading-lists/:id/items` | Add item — `{ node_id, position?, note? }` |
+| `DELETE` | `/reading-lists/:id/items/:nodeId` | Remove item |
+| `PUT` | `/reading-lists/:id/order` | Reorder — `{ order: [node_id, …] }` |
 | `DELETE` | `/widgets/:id` | — |
 
 ### Query language
@@ -364,6 +387,8 @@ root. They override the plugin defaults in that project only.
 | `kb_run` | Execute a JS/Python script in the workspace sandbox |
 | `kb_neighbors`, `kb_graph` | Graph traversal |
 | `kb_widget_list` / `kb_widget_get` / `kb_widget_save` / `kb_widget_refresh_data` | Widgets |
+| `kb_list_index` / `kb_list_get` / `kb_list_save` | Reading list registry |
+| `kb_list_add_item` / `kb_list_remove_item` / `kb_list_reorder` | Reading list items |
 
 Every data tool requires `workspace_id` — there is no "current workspace" session state on the
 server. The plugin's skill and slash commands inject the default from `TRELLIS_WORKSPACE`.

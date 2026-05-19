@@ -149,12 +149,57 @@ function WorkspaceSidebar() {
       <div className="sidebar-section">Read</div>
       <DomainNav />
 
+      <ReadingListNav />
+
       <div className="sidebar-footer">
         <Link to="/workspaces" style={{ border: 'none', color: 'inherit' }}>
           Manage workspaces…
         </Link>
       </div>
     </aside>
+  );
+}
+
+function ReadingListNav() {
+  const ws = useWorkspaceId();
+  const location = useLocation();
+  const { data } = useQuery({
+    queryKey: ['reading-lists', ws],
+    queryFn: () =>
+      fetch(`/api/v1/workspaces/${ws}/reading-lists`)
+        .then((r) => r.json())
+        .then((j) => j.data as Array<{ id: string; title: string; item_count: number }>),
+  });
+  if (!data || data.length === 0) return null;
+  return (
+    <>
+      <div className="sidebar-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Reading lists</span>
+        <Link
+          to={`/workspaces/${ws}/reading-lists`}
+          style={{ border: 'none', color: 'var(--text-subtle)', fontSize: 10, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}
+        >
+          all →
+        </Link>
+      </div>
+      <nav className="sidebar-nav">
+        {data.map((l) => {
+          const to = `/workspaces/${ws}/reading-lists/${l.id}`;
+          const active = location.pathname === to;
+          return (
+            <Link key={l.id} to={to} className={`nav-item ${active ? 'active' : ''}`}>
+              <span className="nav-icon" style={{ fontSize: 12 }}>≡</span>
+              <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {l.title}
+              </span>
+              <span style={{ color: 'var(--text-subtle)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                {l.item_count}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 

@@ -9,6 +9,10 @@ import type {
   Node,
   NodeVersion,
   NodeVersionSummary,
+  ReadingList,
+  ReadingListItem,
+  ReadingListSummary,
+  ReadingListWithItems,
   RendererType,
   Widget,
   Workspace,
@@ -944,6 +948,182 @@ export function toTsQuery(input: string): string {
     .map((t) => `${t}:*`);
   if (tokens.length === 0) return 'a:*';
   return tokens.join(' & ');
+}
+
+// ---------------------------------------------------------------------------
+// Reading lists — curated, ordered selections that may span domains.
+// ---------------------------------------------------------------------------
+
+const READING_LIST_COLS = `id, title, description, created_by, created_at, updated_at`;
+
+function rowToReadingList(row: Record<string, unknown>): ReadingList {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description ?? ''),
+    created_by: String(row.created_by ?? 'unknown'),
+    created_at: new Date(row.created_at as string).toISOString(),
+    updated_at: new Date(row.updated_at as string).toISOString(),
+  };
+}
+
+export interface ReadingListWriteInput {
+  id: string;
+  title: string;
+  description?: string;
+  created_by?: string;
+}
+
+export async function listReadingLists(workspaceId: string): Promise<ReadingListSummary[]> {
+  const sql = `
+    SELECT l.${READING_LIST_COLS.split(', ').join(', l.')},
+           COALESCE(c.cnt, 0)::int AS item_count
+    FROM reading_lists l
+    LEFT JOIN (
+      SELECT reading_list_id, COUNT(*)::int AS cnt
+      FROM reading_list_items
+      WHERE workspace_id = $1
+      GROUP BY reading_list_id
+    ) c ON c.reading_list_id = l.id
+    WHERE l.workspace_id = $1
+    ORDER BY l.updated_at DESC
+  `;
+  const result = await query(sql, [workspaceId]);
+  return result.rows.map((r) => ({
+    ...rowToReadingList(r),
+    item_count: Number(r.item_count ?? 0),
+  }));
+}
+
+export async function getReadingList(
+  workspaceId: string,
+  id: string,
+): Promise<ReadingListWithItems | null> {
+  const result = await query(
+    `SELECT ${READING_LIST_COLS} FROM reading_lists WHERE workspace_id = $1 AND id = $2`,
+    [workspaceId, id],
+  );
+  if (result.rowCount === 0) return null;
+  const list = rowToReadingList(result.rows[0]);
+  const itemsRes = await query(
+    `SELECT node_id, position, note FROM reading_list_items
+     WHERE workspace_id = $1 AND reading_list_id = $2
+     ORDER BY position ASC`,
+    [workspaceId, id],
+  );
+  const items: ReadingListItem[] = itemsRes.rows.map((r) => ({
+    node_id: String(r.node_id),
+    position: Number(r.position),
+    note: String(r.note ?? ''),
+  }));
+  return { ...list, items };
+}
+
+export async function upsertReadingList(
+  workspaceId: string,
+  input: ReadingListWriteInput,
+): Promise<ReadingList> {
+  const sql = `
+    INSERT INTO reading_lists (workspace_id, id, title, description, created_by)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (workspace_id, id) DO UPDATE SET
+      title       = EXCLUDED.title,
+      description = EXCLUDED.description,
+      created_by  = EXCLUDED.created_by
+    RETURNING ${READING_LIST_COLS}
+  `;
+  const result = await query(sql, [
+    workspaceId,
+    input.id,
+    input.title,
+    input.description ?? '',
+    input.created_by ?? 'unknown',
+  ]);
+  return rowToReadingList(result.rows[0]);
+}
+
+export async function deleteReadingList(workspaceId: string, id: string): Promise<boolean> {
+  const result = await query(
+    `DELETE FROM reading_lists WHERE workspace_id = $1 AND id = $2`,
+    [workspaceId, id],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export interface ReadingListItemInput {
+  node_id: string;
+  position?: number;
+  note?: string;
+}
+
+// Add or update an item. If `position` omitted, appends at the end.
+export async function addReadingListItem(
+  workspaceId: string,
+  listId: string,
+  input: ReadingListItemInput,
+): Promise<ReadingListItem> {
+  return withTransaction(async (client) => {
+    let position = input.position;
+    if (position === undefined) {
+      const maxRes = await client.query<{ m: string | null }>(
+        `SELECT MAX(position) AS m FROM reading_list_items
+         WHERE workspace_id = $1 AND reading_list_id = $2`,
+        [workspaceId, listId],
+      );
+      position = (Number(maxRes.rows[0]?.m ?? 0) || 0) + 10;
+    }
+    const sql = `
+      INSERT INTO reading_list_items (workspace_id, reading_list_id, node_id, position, note)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (workspace_id, reading_list_id, node_id) DO UPDATE SET
+        position = EXCLUDED.position,
+        note     = EXCLUDED.note
+      RETURNING node_id, position, note
+    `;
+    const result = await client.query(sql, [
+      workspaceId,
+      listId,
+      input.node_id,
+      position,
+      input.note ?? '',
+    ]);
+    return {
+      node_id: String(result.rows[0].node_id),
+      position: Number(result.rows[0].position),
+      note: String(result.rows[0].note ?? ''),
+    };
+  });
+}
+
+export async function removeReadingListItem(
+  workspaceId: string,
+  listId: string,
+  nodeId: string,
+): Promise<boolean> {
+  const result = await query(
+    `DELETE FROM reading_list_items
+     WHERE workspace_id = $1 AND reading_list_id = $2 AND node_id = $3`,
+    [workspaceId, listId, nodeId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// Bulk reorder: takes the new ordered list of node ids and rewrites positions
+// in 10-step increments (10, 20, 30…). Nodes not in the array are left alone.
+export async function reorderReadingList(
+  workspaceId: string,
+  listId: string,
+  orderedNodeIds: string[],
+): Promise<void> {
+  await withTransaction(async (client) => {
+    for (let i = 0; i < orderedNodeIds.length; i++) {
+      await client.query(
+        `UPDATE reading_list_items SET position = $4
+         WHERE workspace_id = $1 AND reading_list_id = $2 AND node_id = $3`,
+        [workspaceId, listId, orderedNodeIds[i], (i + 1) * 10],
+      );
+    }
+  });
 }
 
 export { withClient };
